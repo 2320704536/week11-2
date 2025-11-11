@@ -1,125 +1,116 @@
 import streamlit as st
+import base64
 from typing import Dict
+from anthropic import Anthropic
 
-st.set_page_config(page_title="Image Studio", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="Claude Studio", page_icon="🎬", layout="wide")
 
-# ---------- Sidebar: API key + Role ----------
-st.sidebar.header("🔑 API & Role Settings")
+# ---------- Sidebar ----------
+st.sidebar.header("🔑 Claude API Settings")
 
-if "OPENAI_API_KEY" not in st.session_state:
-    st.session_state["OPENAI_API_KEY"] = ""
+if "CLAUDE_API_KEY" not in st.session_state:
+    st.session_state["CLAUDE_API_KEY"] = ""
 
-api_key = st.sidebar.text_input("Enter your OpenAI API Key:", type="password", value=st.session_state["OPENAI_API_KEY"])
+api_key = st.sidebar.text_input("Enter Claude API Key:", type="password", value=st.session_state["CLAUDE_API_KEY"])
 if api_key:
-    st.session_state["OPENAI_API_KEY"] = api_key
+    st.session_state["CLAUDE_API_KEY"] = api_key
 
 ROLES: Dict[str, str] = {
-    "Video Director": "You visualize stories and direct how they are brought to life on screen.",
-    "Game Designer": "You craft interactive systems, level flow, and player motivation.",
-    "Photographer": "You think in light, lens, and composition to capture mood and story.",
-    "Graphic Designer": "You shape brand, layout, and hierarchy for clear visual communication.",
-    "Illustrator": "You convey ideas through stylized drawing, color, and texture.",
+    "Video Director": "You visualize stories and direct cinematic scenes.",
+    "Game Designer": "You craft interactive systems and gameplay progression.",
+    "Photographer": "You plan shots based on lens, composition, and lighting.",
+    "Graphic Designer": "You build visual hierarchy, layout, and brand clarity.",
+    "Illustrator": "You sketch, conceptualize, and refine visual ideas.",
 }
 
 role = st.sidebar.selectbox("Choose a role:", list(ROLES.keys()))
-st.sidebar.write(ROLES.get(role, ""))
+st.sidebar.write(ROLES[role])
 
 # ---------- Title ----------
-st.title("Image Studio")
-st.caption("Choose your creative role, ask questions, or visualize your ideas with AI!")
+st.title("Claude Studio")
+st.caption("Creative Role Helper + Mock Image Studio (Claude-powered)")
 
 tab_chat, tab_image = st.tabs(["💬 Chat Assistant", "🖼 Image Studio"])
 
-# ---------- Role-specific system prompts ----------
+# Claude system prompts
 ROLE_SYSTEMS = {
-    "Video Director": """You are an award-winning film director and creative producer. 
-Provide cinematic advice with specifics: shot list, lens suggestions, lighting setups, 
-blocking, coverage, transitions, color palette, and emotional beats. Be concise and actionable.""",
-    "Game Designer": """You are a senior game designer. Provide core loop, mechanics, level structure, 
-progression, difficulty tuning, verbs, and moment-to-moment experience. Include quick examples and scope notes.""",
-    "Photographer": """You are a professional photographer. Provide lens choices, aperture, shutter, ISO, 
-lighting, composition, color, and post workflow. Tailor to the setting and mood.""",
-    "Graphic Designer": """You are a brand and layout designer. Provide grids, type pairing, spacing, 
-visual hierarchy, contrast, and accessible color guidance. Offer quick layout wireframe bullets.""",
-    "Illustrator": """You are a concept artist / illustrator. Provide composition thumbnails, style cues, 
-brush/process tips, color keys, and iteration steps. Keep it practical and paced in steps.""",
+    "Video Director": """You are an award-winning film director. Give shot lists, lenses, lighting, transitions, color palettes.""",
+    "Game Designer": """You are a game designer. Provide loops, mechanics, level design, difficulty tuning.""",
+    "Photographer": """You are a pro photographer. Give camera settings, lighting, composition, color tips.""",
+    "Graphic Designer": """You are a designer. Provide layout, typography, spacing, visual hierarchy, color guidance.""",
+    "Illustrator": """You are an illustrator. Provide composition, style, brush, lighting, color palettes, sketch ideas.""",
 }
 
-# ---------- Utility ----------
 def has_key():
-    if not st.session_state.get("OPENAI_API_KEY"):
-        st.warning("Please enter your OpenAI API Key in the left sidebar.")
+    if not st.session_state.get("CLAUDE_API_KEY"):
+        st.warning("Please enter your Claude API Key in the sidebar.")
         return False
     return True
 
-
 # ---------- Chat Assistant ----------
 with tab_chat:
-    st.subheader(f"🎬 {role} — Creative Chat Assistant")
-    user_q = st.text_area("💭 Enter your question or idea:", placeholder="e.g. How can I make my short film emotionally powerful?", height=140)
+    st.subheader(f"🎬 {role} — Claude Assistant")
 
-    if st.button("✨ Generate Response"):
+    user_q = st.text_area("💭 Your question:", height=140, placeholder="e.g. How do I make my short film emotional?")
+
+    if st.button("✨ Generate with Claude"):
         if has_key() and user_q.strip():
             try:
-                from openai import OpenAI
-                client = OpenAI(api_key=st.session_state["OPENAI_API_KEY"])
+                client = Anthropic(api_key=st.session_state["CLAUDE_API_KEY"])
 
-                # ✅ NEW RESPONSES API (correct)
-                resp = client.responses.create(
-                    model="gpt-4o-mini",
-                    input=[
-                        {"role": "system", "content": ROLE_SYSTEMS[role]},
-                        {"role": "user", "content": user_q},
-                    ],
-                    temperature=0.7,
+                message = client.messages.create(
+                    model="claude-3-haiku-20240307",
+                    max_tokens=800,
+                    system=ROLE_SYSTEMS[role],
+                    messages=[
+                        {"role": "user", "content": user_q}
+                    ]
                 )
 
-                # ✅ Extract output text
-                output = resp.output_text
-                if not output:
-                    # fallback when no output_text available
-                    text = ""
-                    for item in resp.output:
-                        if item.type == "output_text":
-                            text += item.text
-                    output = text
-
+                output = message.content[0].text
                 st.markdown(output)
 
             except Exception as e:
-                st.error(f"OpenAI error: {e}")
-
+                st.error(f"Claude API error: {e}")
 
 # ---------- Image Studio ----------
 with tab_image:
-    st.subheader("🖼️ Text-to-Image Generator")
+    st.subheader("🖼 Mock Image Generator (Claude-powered description)")
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        img_prompt = st.text_area("Describe your image:", placeholder="e.g. Cyberpunk street at night, glowing neon signs, cinematic lighting", height=120)
+        img_prompt = st.text_area("Describe the image you want:", height=120)
     with col2:
         size = st.selectbox("Size", ["1024x1024", "768x768", "512x512"])
 
-    if st.button("🎨 Generate Image"):
-        if has_key() and img_prompt.strip():
+    if st.button("🎨 Generate Mock Image"):
+        if not img_prompt.strip():
+            st.warning("Please enter a description.")
+        else:
+            # Let Claude generate a nice image prompt
             try:
-                from openai import OpenAI
-                import base64
+                if has_key():
+                    client = Anthropic(api_key=st.session_state["CLAUDE_API_KEY"])
+                    message = client.messages.create(
+                        model="claude-3-haiku-20240307",
+                        max_tokens=300,
+                        system="Rewrite the prompt into a detailed cinematic image description.",
+                        messages=[{"role": "user", "content": img_prompt}]
+                    )
+                    refined_prompt = message.content[0].text
+                    st.success("Claude refined your prompt:")
+                    st.write(refined_prompt)
+            except:
+                refined_prompt = img_prompt
 
-                client = OpenAI(api_key=st.session_state["OPENAI_API_KEY"])
+            # Generate a placeholder colorful image
+            import numpy as np
+            import matplotlib.pyplot as plt
 
-                # ✅ Updated Images API
-                img = client.images.generate(
-                    model="gpt-image-1",
-                    prompt=img_prompt,
-                    size=size,
-                )
+            w, h = map(int, size.split("x"))
+            arr = np.random.randint(0, 255, (h, w, 3), dtype=np.uint8)
 
-                b64 = img.data[0].b64_json
-                st.image(base64.b64decode(b64), caption="Generated Image", use_container_width=True)
-
-            except Exception as e:
-                st.error(f"OpenAI image error: {e}")
+            st.image(arr, caption="Mock Image (Placeholder)", use_container_width=True)
 
 st.markdown("---")
-st.caption("Built for Art & Advanced Big Data · Image Studio Demo")
+st.caption("Claude Studio · Fully Free (Mock Image Mode)")
